@@ -6,13 +6,15 @@
 - Data gathering
 
 ### What I am working on today:
-- Create preliminary project plan
-- Setup automatic data gathering and remote  python notebook
+- create preliminary project plan
+- setup automatic data gathering and remote  python notebook
 - gather remaining FOMC meeting minutes
 - remote postgres database + ssh tunnel
 - plan out the web app
 - explore D3.js
+- explore NYTimes article pull and Factiva
+- understanding sementic trees
 
 ### What are the current roadblocks:
-- Longer term high frequency data.  Solution: look into IQ Feed
+- Older high frequency data.  Solution: look into IQ Feed
 - D3.js I'm not yet familiar with the package
