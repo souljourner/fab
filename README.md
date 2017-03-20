@@ -1,2 +1,4 @@
 # fab
-Fed Analyser Bot
+fab - Fed Analyser Bot
+
+FOMC Meeting Minuntes Analyser
