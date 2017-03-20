@@ -1,0 +1,12 @@
+*.pyc
+.DS_Store
+*.swp
+jz_notes/
+.ipynb_checkpoints/
+data/
+*.csv
+*.tsv
+.cache/
+secret.*
+*.dat
+
