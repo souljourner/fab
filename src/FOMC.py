@@ -17,7 +17,8 @@ class FOMC (object):
                  calendar_url='https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
                  historical_date = 2011,
                  verbose = True,
-                 max_threads = 5):
+                 max_threads = 10):
+
         self.base_url = base_url
         self.calendar_url = calendar_url
         self.df = None
@@ -28,6 +29,7 @@ class FOMC (object):
         self.HISTORICAL_DATE = historical_date
         self.MAX_THREADS = max_threads
 
+    
     def _get_links(self, from_year):
         '''
         private function that sets all the links for the FOMC meetings from the giving from_year
@@ -89,15 +91,14 @@ class FOMC (object):
         for row in range(len(self.articles)):
             self.articles[row] = map(lambda x: x.strip(), self.articles[row])
             words = " ".join(self.articles[row]).split()
-            self.articles[row] = "".join(words)
+            self.articles[row] = " ".join(words)
 
+    
     def _get_articles_multi_threaded(self):
         if self.verbose:
-            print("Getting articles...")
+            print("Getting articles - Multi-threaded...")
 
         self.dates, self.articles = [], []
-
-
         jobs = []
         # initiate and start threads:
         index = 0
@@ -106,19 +107,20 @@ class FOMC (object):
                 t = threading.Thread(target=self._add_article, args=(self.links[index],))
                 jobs.append(t)
                 t.start()
+                index += 1
             else:    # wait for threads to complete and join them back into the main thread
                 t = jobs.pop(0)
                 t.join()
-            index += 1
         for t in jobs:
             t.join()
 
         for row in range(len(self.articles)):
             self.articles[row] = map(lambda x: x.strip(), self.articles[row])
             words = " ".join(self.articles[row]).split()
-            self.articles[row] = "".join(words)
+            self.articles[row] = " ".join(words)
 
-    def get_statements(self, from_year=2000):
+
+    def get_statements(self, from_year=1994):
         '''
         Returns a Pandas DataFrame of meeting minutes with the date as the index
         uses a date range of from_year to the most current
@@ -128,11 +130,12 @@ class FOMC (object):
         '''
         self._get_links(from_year)
         print("There are ",len(self.links), 'links')
-        self._get_articles()
-        #self._get_articles_multi_threaded()
+        #self._get_articles()
+        self._get_articles_multi_threaded()
 
         self.df = pd.DataFrame(self.articles, index = pd.to_datetime(self.dates)).sort_index()
         return self.df
+
 
     def pick_df(self, filename="../data/minutes.pickle"):
         if filename:
@@ -140,3 +143,10 @@ class FOMC (object):
                 print("Writing to", filename)        
             with open(filename, "wb") as output_file:
                     pickle.dump(self.df, output_file)
+
+if __name__ == '__main__':
+    #Example Usage
+    fomc = FOMC()
+    df = fomc.get_statements()
+    fomc.pickle("./df_minutes.pickle")
+
