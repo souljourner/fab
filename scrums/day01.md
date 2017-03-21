@@ -6,7 +6,7 @@
 - Data gathering
 
 ### What I am working on today:
-- create preliminary project plan
+- create project plan
 - setup automatic data gathering and remote  python notebook
 - gather remaining FOMC meeting minutes
 - remote postgres database + ssh tunnel
