@@ -1,4 +1,4 @@
-# Day 2 - March 20, 2017
+# Day 2 - March 21, 2017
 
 ### What I did yesterday:
 - created a project plan
