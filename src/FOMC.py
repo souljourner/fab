@@ -5,6 +5,7 @@ import re
 import pandas as pd
 import pickle
 import threading
+import sys
 
 class FOMC (object):
     '''
@@ -15,15 +16,17 @@ class FOMC (object):
     def __init__(self, base_url='https://www.federalreserve.gov', 
                  calendar_url='https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
                  historical_date = 2011,
-                 verbose = True):
+                 verbose = True,
+                 max_threads = 5):
         self.base_url = base_url
         self.calendar_url = calendar_url
         self.df = None
         self.links = None
         self.dates = None
         self.articles = None
-        self.HISTORICAL_DATE = historical_date
         self.verbose = verbose
+        self.HISTORICAL_DATE = historical_date
+        self.MAX_THREADS = max_threads
 
     def _get_links(self, from_year):
         '''
@@ -48,6 +51,7 @@ class FOMC (object):
                 for statement_historical in statements_historical:
                     self.links.append(statement_historical.attrs['href'])
 
+
     def _date_from_link(self, link):
         date = re.findall('[0-9]{8}', link)[0].encode('ascii')
         if date[4] == '0':
@@ -56,6 +60,23 @@ class FOMC (object):
             date = date[:4] + '/' + date[4:6] + '/' + date[6:]
         return date
 
+
+    def _add_article(self, link):
+        '''
+        returns the related article for 1 link
+        '''
+        if self.verbose:
+            sys.stdout.write(".")
+            sys.stdout.flush()
+
+        # date of the article content
+        self.dates.append(self._date_from_link(link))
+        statement_socket = urlopen(self.base_url + link)
+        statement = BeautifulSoup(statement_socket, 'html.parser')
+        paragraphs = statement.findAll('p')
+        self.articles.append([paragraph.get_text() for paragraph in paragraphs])
+
+
     def _get_articles(self):
         if self.verbose:
             print("Getting articles...")
@@ -63,21 +84,39 @@ class FOMC (object):
         self.dates, self.articles = [], []
 
         for link in self.links:
-            if self.verbose:
-                print(".", end='')
-
-            # date of the article content
-            self.dates.append(self._date_from_link(link))
-            statement_socket = urlopen(self.base_url + link)
-            statement = BeautifulSoup(statement_socket, 'html.parser')
-            paragraphs = statement.findAll('p')
-            content = [paragraph.get_text() for paragraph in paragraphs]
-            self.articles.append(content)
+            self._add_article(link)
 
         for row in range(len(self.articles)):
             self.articles[row] = map(lambda x: x.strip(), self.articles[row])
             words = " ".join(self.articles[row]).split()
-            self.articles[row] = " ".join(words)
+            self.articles[row] = "".join(words)
+
+    def _get_articles_multi_threaded(self):
+        if self.verbose:
+            print("Getting articles...")
+
+        self.dates, self.articles = [], []
+
+
+        jobs = []
+        # initiate and start threads:
+        index = 0
+        while index < len(self.links):
+            if len(jobs) < self.MAX_THREADS:
+                t = threading.Thread(target=self._add_article, args=(self.links[index],))
+                jobs.append(t)
+                t.start()
+            else:    # wait for threads to complete and join them back into the main thread
+                t = jobs.pop(0)
+                t.join()
+            index += 1
+        for t in jobs:
+            t.join()
+
+        for row in range(len(self.articles)):
+            self.articles[row] = map(lambda x: x.strip(), self.articles[row])
+            words = " ".join(self.articles[row]).split()
+            self.articles[row] = "".join(words)
 
     def get_statements(self, from_year=2000):
         '''
@@ -88,7 +127,10 @@ class FOMC (object):
         parsing much older years
         '''
         self._get_links(from_year)
+        print("There are ",len(self.links), 'links')
         self._get_articles()
+        #self._get_articles_multi_threaded()
+
         self.df = pd.DataFrame(self.articles, index = pd.to_datetime(self.dates)).sort_index()
         return self.df
 
