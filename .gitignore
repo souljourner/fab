@@ -9,4 +9,4 @@ data/
 .cache/
 secret.*
 *.dat
-
+secret/
