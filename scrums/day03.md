@@ -8,6 +8,10 @@
 ### What I am working on today:
 - start building an NLP model using spaCy
 - gather daily time series data and use it as a proxy for the target variable
+	- SPY for general market
+	- VXX for volatility
+	- USD/YEN, USD/CAD, USD/CNH and USD/EUR for currency
+	- ^FVX for 5yr, ^TYX for 30 yr, 
 - try a tree-based method for prediction
 - improve on project plan
 - plan out the web app
