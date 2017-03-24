@@ -9,6 +9,7 @@
 - start building an NLP model using spaCy with the following features:
 	- number of days
 - gather daily time series data and use it as a proxy for the target variable
+	- SHY as proxy for 1-3 yr treasury
 	- SPY for general market
 	- VXX for volatility
 	- USD/YEN, USD/CAD, USD/CNH and USD/EUR for currency
@@ -17,7 +18,6 @@
 - improve on project plan
 - plan out the web app
 - explore D3.js
-- explore NYTimes article pull and Factiva
 - understanding sementic trees
 
 ### What are the current roadblocks:
