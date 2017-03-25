@@ -22,13 +22,13 @@ What are the effects on the various asset classes from the FOMC meetings?
 3. Daily OHLC data
 4. Weekly / long term OHLC data
 
-### effect on different asset classes
+### Effect on different asset classes
 1. short term treasuries
 2. volatility
 3. S&P 500
 
 ## Web app - where will you host it, what kind of information will you present?
-Hosted on my own server at home.  It will have at the minimum some visuals.  Idealy I would also like it to be running live and making predictions or waiting for meeting minute releases.
+Hosted on a private server.  It will have at the minimum some visuals.  Idealy I would also like it to be running live and making predictions or waiting for meeting minute releases.
 
 ## Visualization - what final visuals are you aiming to produce?
 - Start with basic matplotlib / seaborn plots for the above mentioned presentation
