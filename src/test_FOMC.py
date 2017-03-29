@@ -34,7 +34,7 @@ def get_labels(filename, index):
         prices[ticker].index = prices[ticker].index.tz_localize('America/Los_Angeles').tz_convert('America/New_York').tz_localize(None)
         prices[ticker]['close-MA-4'] = fit_moving_average_trend(prices[ticker]['close'], window=4)
 
-    # Selector to get only prices right before and rigth after the statement release
+    # Selector to get only prices right before and right after the statement release
     pre_post_FOMC_time_selector = []
     for date in index:
         pre_post_FOMC_time_selector.extend(pd.date_range(date.replace(hour=13, minute=30), periods=2, freq='2 H'))
@@ -58,15 +58,15 @@ def get_labels(filename, index):
     return y_dfs        
 
 
-def lemmatize_descriptions(meeting_statements):
+def lemmatize_descriptions(meeting_statement):
     lem = WordNetLemmatizer()
     lemmatize = lambda d: " ".join(lem.lemmatize(word) for word in d.split())
-    return [lemmatize(desc) for desc in meeting_statements]
+    return [lemmatize(desc) for desc in meeting_statement]
 
 
-def get_vectorizer(meeting_statements, num_features=5000):
+def get_vectorizer(meeting_statement, num_features=500):
     vect = TfidfVectorizer(max_features=num_features, stop_words='english')
-    return vect.fit(meeting_statements)
+    return vect.fit(meeting_statement)
 
 
 def run_model(Model, X_train, X_test, y_train, y_test):
@@ -83,9 +83,8 @@ def fit_moving_average_trend(series, window=6):
     return series.rolling(window=window,center=False).mean()
 
 
-def compare_models(meeting_statements, labels, models):
-    desc_train, desc_test, y_train, y_test = \
-        train_test_split(meeting_statements, labels)
+def compare_models(X, labels, models):
+    desc_train, desc_test, y_train, y_test = train_test_split(X, labels)
 
     print "-----------------------------"
     print "Without Lemmatization:"
@@ -117,16 +116,15 @@ if __name__ == '__main__':
     meeting_statements = get_meeting_statements('../data/minutes_df.pickle')
     labels = get_labels('../data/*.csv', meeting_statements.index)
 
-    for ticker in meeting_statements.keys:
-        print ticker        
+    for ticker in labels.keys():
+        print ticker
         print "distribution of labels:"
         for i, count in enumerate(np.bincount(labels[ticker]['binary'].values)):
             print "%d: %d" % (i, count)
         models = [LogisticRegression, KNeighborsClassifier, MultinomialNB,
                   RandomForestClassifier]
         compare_models(meeting_statements.loc[labels[ticker].index]['statements'].values.tolist(), labels[ticker]['binary'].values, models)
-
-        print ""
-        print ""
-        print ""
         
+        print "" 
+        print "" 
+        print "" 
