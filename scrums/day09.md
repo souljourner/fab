@@ -9,6 +9,9 @@
 
 ### What I am working on today:
 - find a way to get the scoring more consistent
+- engineer other price features into the X
+- cross validating only on earlier data (timeseries cross validation in sklearn)
+- turn scoring into a regression and not just classificiation and see if it improves the scoring
 - dig further into ways to improve with NLP methods
 - create basic sentiment analysis
 - dig deeper on random forest model to see if it can increase the scores
