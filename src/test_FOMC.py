@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 import pickle
 import datetime as dt
+import glob
 
 
 def get_meeting_statements(filename):
@@ -19,24 +20,43 @@ def get_meeting_statements(filename):
         return pickle.load(f)
 
 
-def get_labels(filename):
+def get_labels(filename, index):
+
+    # A dictionary of dataframes.  One for each ticker
     prices = dict()
     col_names = ['date', 'open', 'high', 'low', 'close', 'volume', 'count', 'WAP']
-    for file in glob.glob(filename):
-        this_file = file.split('/')[-1].split('.')[0]
-        prices[this_file] = pd.read_csv(file, parse_dates=['date'], infer_datetime_format=True,names=col_names).drop_duplicates()
-        prices[this_file].set_index('date', inplace=True,)
-        prices[this_file].index = prices[this_file].index.tz_localize('America/Los_Angeles').tz_convert('America/New_York').tz_localize(None)
-        prices[this_file]['close-MA-4'] = fit_moving_average_trend(prices[this_file]['close'], window=4)
 
+    # First get all the prices into respective DF's
+    for file in glob.glob(filename):
+        ticker = file.split('/')[-1].split('.')[0]
+        prices[ticker] = pd.read_csv(file, parse_dates=['date'], infer_datetime_format=True,names=col_names).drop_duplicates()
+        prices[ticker].set_index('date', inplace=True)
+        prices[ticker].index = prices[ticker].index.tz_localize('America/Los_Angeles').tz_convert('America/New_York').tz_localize(None)
+        prices[ticker]['close-MA-4'] = fit_moving_average_trend(prices[ticker]['close'], window=4)
+
+    # Selector to get only prices right before and rigth after the statement release
     pre_post_FOMC_time_selector = []
-    for date in minutes_df.index:
+    for date in index:
         pre_post_FOMC_time_selector.extend(pd.date_range(date.replace(hour=13, minute=30), periods=2, freq='2 H'))
-    
-    # This is prices that is only 
+
     prices_FOMC = dict()
     for key in prices.keys():
         prices_FOMC[key] = prices[key].loc[pre_post_FOMC_time_selector][['close-MA-4']].dropna()
+
+    # each value in this dictionary is a two columns of values.  
+    y_dfs = dict()
+    for key in prices_FOMC:
+        y_dfs[key] = prices_FOMC[key].groupby(prices_FOMC[key].index.date).diff().dropna() 
+        y_dfs[key]['fomc-close-MA-4-pct'] = y_dfs[key]['close-MA-4'] / prices[key].loc[y_dfs[key].index]['close']
+
+        # Removes the time from the index since now we are left with one prediction a day
+        y_dfs[key].index = y_dfs[key].index.normalize()
+
+        # Binary column stores 1 if market went up, 0 otherwise
+        y_dfs[key]['binary'] = (y_dfs[key]['close-MA-4'] > 0) * 1
+        y_dfs[key].columns = ['abs-delta', 'pct-delta', 'binary']
+    return y_dfs        
+
 
 def lemmatize_descriptions(meeting_statements):
     lem = WordNetLemmatizer()
@@ -58,8 +78,10 @@ def run_model(Model, X_train, X_test, y_train, y_test):
         precision_score(y_test, y_predict), \
         recall_score(y_test, y_predict)
 
+
 def fit_moving_average_trend(series, window=6):
     return series.rolling(window=window,center=False).mean()
+
 
 def compare_models(meeting_statements, labels, models):
     desc_train, desc_test, y_train, y_test = \
@@ -90,11 +112,21 @@ def run_test(models, desc_train, desc_test, y_train, y_test):
 
 
 if __name__ == '__main__':
+
+
     meeting_statements = get_meeting_statements('../data/minutes_df.pickle')
-    labels = get_labels('data/labels.txt')
-    print "distribution of labels:"
-    for i, count in enumerate(np.bincount(labels)):
-        print "%d: %d" % (i, count)
-    models = [LogisticRegression, KNeighborsClassifier, MultinomialNB,
-              RandomForestClassifier]
-    compare_models(meeting_statements, labels, models)
+    labels = get_labels('../data/*.csv', meeting_statements.index)
+
+    for ticker in meeting_statements.keys:
+        print ticker        
+        print "distribution of labels:"
+        for i, count in enumerate(np.bincount(labels[ticker]['binary'].values)):
+            print "%d: %d" % (i, count)
+        models = [LogisticRegression, KNeighborsClassifier, MultinomialNB,
+                  RandomForestClassifier]
+        compare_models(meeting_statements.loc[labels[ticker].index]['statements'].values.tolist(), labels[ticker]['binary'].values, models)
+
+        print ""
+        print ""
+        print ""
+        
