@@ -15,6 +15,7 @@ import numpy as np
 import pickle
 import datetime as dt
 import glob
+import sys
 
 
 class Fab(object):
@@ -23,22 +24,12 @@ class Fab(object):
 
 	A class to create predictions on the FOMC meeting minutes
 	'''
+
 	def __init__(self):
 	    self.meeting_statements = self.get_meeting_statements('../data/minutes_df.pickle')
 	    self.labels = self.get_labels('../data/*.csv', self.meeting_statements.index)
-
-	    for ticker in self.labels.keys():
-	        print ticker
-	        print "distribution of labels:"
-	        for i, count in enumerate(np.bincount(self.labels[ticker]['binary'].values)):
-	            print "%d: %d" % (i, count)
-	        models = [LogisticRegression, KNeighborsClassifier, MultinomialNB,
-	                  RandomForestClassifier, ModeClassifier]
-	        self.compare_models(self.meeting_statements.loc[self.labels[ticker].index]['statements'].values.tolist(), 
-	        			   self.labels[ticker]['binary'].values, models)
-	        print "" 
-	        print "" 
-	        print "" 
+	    print("Available tickers:")
+	    print(", ".join(list(self.labels.keys())))
 
 
 	def get_meeting_statements(self, filename):
@@ -135,6 +126,19 @@ class Fab(object):
 	        name = Model.__name__
 	        acc, f1, prec, rec = self.run_model(Model, X_train, X_test, y_train, y_test)
 	        print "%.4f\t%.4f\t%.4f\t%.4f\t%s" % (acc, f1, prec, rec, name)
+
+
+	def run(self, tickers=['SHY-USD-TRADES']):
+	    for ticker in tickers:
+	    	if ticker in self.labels.keys():
+		        print ticker
+		        print "distribution of labels:"
+		        for i, count in enumerate(np.bincount(self.labels[ticker]['binary'].values)):
+		            print "%d: %d" % (i, count)
+		        models = [LogisticRegression, KNeighborsClassifier, MultinomialNB,
+		                  RandomForestClassifier, ModeClassifier]
+		        self.compare_models(self.meeting_statements.loc[self.labels[ticker].index]['statements'].values.tolist(), 
+		        			   self.labels[ticker]['binary'].values, models)
 
 
 if __name__ == '__main__':
