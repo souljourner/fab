@@ -5,17 +5,29 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.neighbors import KNeighborsRegressor
+
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import TimeSeriesSplit
+
 from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
 from sklearn.preprocessing import LabelEncoder
+
 from dumb_predictors import MeanRegressor, ModeClassifier
+
 import pandas as pd
 import numpy as np
 import pickle
 import datetime as dt
 import glob
 import sys
+
+from keras.models import Sequential
+from keras.layers import Dense, Activation
 
 
 class Fab(object):
@@ -25,11 +37,12 @@ class Fab(object):
 	A class to create predictions on the FOMC meeting minutes
 	'''
 
-	def __init__(self):
-	    self.meeting_statements = self.get_meeting_statements('../data/minutes_df.pickle')
-	    self.labels = self.get_labels('../data/*.csv', self.meeting_statements.index)
-	    print("Available tickers:")
-	    print(", ".join(list(self.labels.keys())))
+	def __init__(self, regression=True):
+		self.regression=regression
+		self.meeting_statements = self.get_meeting_statements('../data/minutes_df.pickle')
+		self.labels = self.get_labels('../data/*.csv', self.meeting_statements.index)
+		print("Available tickers:")
+		print(", ".join(list(self.labels.keys())))
 
 
 	def get_meeting_statements(self, filename):
@@ -82,38 +95,23 @@ class Fab(object):
 	    return [lemmatize(desc) for desc in meeting_statement]
 
 
-	def get_vectorizer(self, meeting_statement, num_features=50000):
+	def get_vectorizer(self, meeting_statement, num_features=5000):
 	    vect = TfidfVectorizer(max_features=num_features, stop_words='english')
 	    return vect.fit(meeting_statement)
-
-
-	def run_model(self, Model, X_train, X_test, y_train, y_test):
-	    m = Model()
-	    m.fit(X_train, y_train)
-	    y_predict = m.predict(X_test)
-	    return accuracy_score(y_test, y_predict), \
-	           f1_score(y_test, y_predict), \
-	           precision_score(y_test, y_predict), \
-	           recall_score(y_test, y_predict)
 
 
 	def fit_moving_average_trend(self, series, window=6):
 	    return series.rolling(window=window,center=False).mean()
 
 
-	def compare_models(self, X, labels, models):
-	    desc_train, desc_test, y_train, y_test = train_test_split(X, labels)
+	def run_model(self, model, X_train, X_test, y_train, y_test):
 
-	    print "-----------------------------"
-	    print "Without Lemmatization:"
-	    self.run_test(models, desc_train, desc_test, y_train, y_test)
-
-	    print "-----------------------------"
-	    print "With Lemmatization:"
-	    self.run_test(models, self.lemmatize_descriptions(desc_train),
-	             	  self.lemmatize_descriptions(desc_test), y_train, y_test)
-
-	    print "-----------------------------"
+	    model.fit(X_train, y_train)
+	    y_predict = model.predict(X_test)
+	    return accuracy_score(y_test, y_predict), \
+	           f1_score(y_test, y_predict), \
+	           precision_score(y_test, y_predict), \
+	           recall_score(y_test, y_predict)
 
 
 	def run_test(self, models, desc_train, desc_test, y_train, y_test):
@@ -122,41 +120,72 @@ class Fab(object):
 	    X_test = vect.transform(desc_test).toarray()
 
 	    print "acc\tf1\tprec\trecall"
-	    for Model in models:
-	        name = Model.__name__
-	        acc, f1, prec, rec = self.run_model(Model, X_train, X_test, y_train, y_test)
+	    for model in models:
+	        name = model.__class__.__name__
+	        acc, f1, prec, rec = self.run_model(model, X_train, X_test, y_train, y_test)
 	        print "%.4f\t%.4f\t%.4f\t%.4f\t%s" % (acc, f1, prec, rec, name)
+	    return acc
+
+
+	def compare_models(self, desc, labels, models, splits=10):
+
+		# desc_train, desc_test, y_train, y_test = train_test_split(desc, labels)
+
+		tscv = TimeSeriesSplit(n_splits=splits)
+
+		for train_index, test_index in tscv.split(desc):
+			desc_train, desc_test = X[train_index], X[test_index]
+		    y_train, y_test = y[train_index], y[test_index]
+
+		    # print "-----------------------------"
+		    # print "Without Lemmatization:"
+		    # self.run_test(models, desc_train, desc_test, y_train, y_test)
+
+		    print "-----------------------------"
+		    print "With Lemmatization:"
+		    self.run_test(models, self.lemmatize_descriptions(desc_train),
+		             	  self.lemmatize_descriptions(desc_test), y_train, y_test)
+
+	    print "-----------------------------"
 
 
 	def run(self, tickers=['SHY-USD-TRADES']):
-	    for ticker in tickers:
-	    	if ticker in self.labels.keys():
-		        print ticker
-		        print "distribution of labels:"
-		        for i, count in enumerate(np.bincount(self.labels[ticker]['binary'].values)):
-		            print "%d: %d" % (i, count)
-		        models = [LogisticRegression, KNeighborsClassifier, MultinomialNB,
-		                  RandomForestClassifier, ModeClassifier]
-		        self.compare_models(self.meeting_statements.loc[self.labels[ticker].index]['statements'].values.tolist(), 
-		        			   self.labels[ticker]['binary'].values, models)
+
+		# sequential = Sequential()
+		# sequential.add(Dense(units=64, input_dim=100))
+		# sequential.add(Activation('relu'))
+		# sequential.add(Dense(units=10))
+		# sequential.add(Activation('softmax'))
+		# sequential.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
+
+		if self.regression:
+			models = [LogisticRegression(), 
+				      KNeighborsClassifier(), 
+				      MultinomialNB(), 
+				      RandomForestRegressor(), 
+				      GradientBoostingRegressor(),
+				      # sequential, 
+				      MeanRegressor()]
+		    
+		else:
+			models = [LogisticRegression(), 
+				      KNeighborsClassifier(), 
+				      MultinomialNB(), 
+				      RandomForestClassifier(), 
+				      # sequential, 
+				      GradientBoostingClassifier(),
+				      ModeClassifier()]
+		    
+		for ticker in tickers:
+			if ticker in self.labels.keys():
+				print ticker
+				print "distribution of labels:"
+				for i, count in enumerate(np.bincount(self.labels[ticker]['binary'].values)):
+					print "%d: %d" % (i, count)
+				self.compare_models(self.meeting_statements.loc[self.labels[ticker].index]['statements'].values.tolist(), 
+									self.labels[ticker]['binary'].values, models)
 
 
 if __name__ == '__main__':
-
-
-    meeting_statements = get_meeting_statements('../data/minutes_df.pickle')
-    labels = get_labels('../data/*.csv', meeting_statements.index)
-
-
-    for ticker in labels.keys():
-        print ticker
-        print "distribution of labels:"
-        for i, count in enumerate(np.bincount(labels[ticker]['binary'].values)):
-            print "%d: %d" % (i, count)
-        models = [LogisticRegression, KNeighborsClassifier, MultinomialNB,
-                  RandomForestClassifier, ModeClassifier]
-        compare_models(meeting_statements.loc[labels[ticker].index]['statements'].values.tolist(), labels[ticker]['binary'].values, models)
-                
-        print "" 
-        print "" 
-        print "" 
+	fab = Fab()
+	fab.run()
