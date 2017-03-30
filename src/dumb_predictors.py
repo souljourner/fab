@@ -1,3 +1,5 @@
+import numpy as np
+
 class ModeClassifier(object):
     """
     A dumb classification model that simply predicts the most highest occurence outcome.
