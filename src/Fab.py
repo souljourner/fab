@@ -127,26 +127,28 @@ class Fab(object):
 	    return acc
 
 
-	def compare_models(self, desc, labels, models, splits=10):
+	def compare_models(self, desc, y, models, splits=10):
 
 		# desc_train, desc_test, y_train, y_test = train_test_split(desc, labels)
 
 		tscv = TimeSeriesSplit(n_splits=splits)
 
 		for train_index, test_index in tscv.split(desc):
-			desc_train, desc_test = X[train_index], X[test_index]
-		    y_train, y_test = y[train_index], y[test_index]
+			desc_train, desc_test = desc[train_index], desc[test_index]
+			y_train, y_test = y[train_index], y[test_index]
 
+			print "Length: train {}, test {}".format(len(train_index), len(test_index))
+			print "Balance: train {}, test {}".format(np.sum(y_train)/float(len(y_train)), 
+													  np.sum(y_test)/float(len(y_test))) 
 		    # print "-----------------------------"
 		    # print "Without Lemmatization:"
 		    # self.run_test(models, desc_train, desc_test, y_train, y_test)
 
-		    print "-----------------------------"
-		    print "With Lemmatization:"
-		    self.run_test(models, self.lemmatize_descriptions(desc_train),
-		             	  self.lemmatize_descriptions(desc_test), y_train, y_test)
-
-	    print "-----------------------------"
+			print "-----------------------------"
+			print "With Lemmatization:"
+			self.run_test(models, self.lemmatize_descriptions(desc_train),
+			         	  self.lemmatize_descriptions(desc_test), y_train, y_test)
+			print "-----------------------------"
 
 
 	def run(self, tickers=['SHY-USD-TRADES']):
@@ -160,8 +162,7 @@ class Fab(object):
 
 		if self.regression:
 			models = [LogisticRegression(), 
-				      KNeighborsClassifier(), 
-				      MultinomialNB(), 
+				      KNeighborsRegressor(), 
 				      RandomForestRegressor(), 
 				      GradientBoostingRegressor(),
 				      # sequential, 
@@ -175,14 +176,14 @@ class Fab(object):
 				      # sequential, 
 				      GradientBoostingClassifier(),
 				      ModeClassifier()]
-		    
+
 		for ticker in tickers:
 			if ticker in self.labels.keys():
 				print ticker
 				print "distribution of labels:"
 				for i, count in enumerate(np.bincount(self.labels[ticker]['binary'].values)):
 					print "%d: %d" % (i, count)
-				self.compare_models(self.meeting_statements.loc[self.labels[ticker].index]['statements'].values.tolist(), 
+				self.compare_models(self.meeting_statements.loc[self.labels[ticker].index]['statements'].values, 
 									self.labels[ticker]['binary'].values, models)
 
 
