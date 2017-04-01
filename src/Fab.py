@@ -193,14 +193,29 @@ class Fab(object):
                       MeanRegressor()]
             
         else:
-            models = [LogisticRegression(), 
-                      KNeighborsClassifier(), 
-                      MultinomialNB(), 
+            # models = [LogisticRegression(), 
+            #           KNeighborsClassifier(), 
+            #           MultinomialNB(), 
+            #           RandomForestClassifier(bootstrap=False), 
+            #           # sequential, 
+            #           GradientBoostingClassifier(),
+            #           SVC(degree=4),
+            #           ModeClassifier()]
+
+            models = [RandomForestClassifier(bootstrap=True), 
                       RandomForestClassifier(bootstrap=False), 
-                      # sequential, 
-                      GradientBoostingClassifier(),
-                      SVC(degree=4),
+                      RandomForestClassifier(n_estimators=275), 
+                      RandomForestClassifier(n_estimators=300), 
+                      RandomForestClassifier(n_estimators=305), 
+                      RandomForestClassifier(n_estimators=310), 
+                      RandomForestClassifier(n_estimators=315), 
+                      RandomForestClassifier(n_estimators=320), 
+                      RandomForestClassifier(n_estimators=325), 
+                      RandomForestClassifier(n_estimators=330), 
                       ModeClassifier()]
+
+
+
 
         for ticker in tickers:
             if ticker in self.labels.keys():
