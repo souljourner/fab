@@ -15,7 +15,7 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import TimeSeriesSplit
 
-from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
+from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score, auc, roc_curve
 from sklearn.preprocessing import LabelEncoder
 
 from dumb_predictors import MeanRegressor, ModeClassifier
@@ -120,7 +120,10 @@ class Fab(object):
 
         model.fit(X_train, y_train)
         y_predict = model.predict(X_test)
-        return accuracy_score(y_test, y_predict), \
+
+        fpr, tpr, thresholds = roc_curve(y_test, y_predict)
+        return auc(fpr, tpr), \
+               accuracy_score(y_test, y_predict), \
                f1_score(y_test, y_predict), \
                precision_score(y_test, y_predict), \
                recall_score(y_test, y_predict)
@@ -132,13 +135,18 @@ class Fab(object):
         X_test = vect.transform(desc_test).toarray()
 
         if self.regression:
-            pass
-        else:
             print "acc\tf1\tprec\trecall"
             for model in models:
                 name = model.__class__.__name__
                 acc, f1, prec, rec = self.run_model(model, X_train, X_test, y_train, y_test)
                 print "%.4f\t%.4f\t%.4f\t%.4f\t%s" % (acc, f1, prec, rec, name)
+            return acc
+        else:
+            print "auc\tacc\tf1\tprec\trecall"
+            for model in models:
+                name = model.__class__.__name__
+                auc_score, acc, f1, prec, rec = self.run_model(model, X_train, X_test, y_train, y_test)
+                print "%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%s" % (auc_score, acc, f1, prec, rec, name)
             return acc
 
 
@@ -188,7 +196,7 @@ class Fab(object):
             models = [LogisticRegression(), 
                       KNeighborsClassifier(), 
                       MultinomialNB(), 
-                      RandomForestClassifier(), 
+                      RandomForestClassifier(bootstrap=False), 
                       # sequential, 
                       GradientBoostingClassifier(),
                       SVC(degree=4),
