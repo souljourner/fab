@@ -67,8 +67,11 @@ class Fab(object):
             print "Loading saved statements"
             return pickle.load(f)
 
-    def get_prices(self, filename='../data/*.csv')
-        # A dictionary of dataframes.  One for each ticker
+
+    def get_prices(self, filename='../data/*.csv'):
+        # A dictionary of dataframes.  One for each 
+        # note the timezone issues need to be rechecked prior to running live
+
         prices = dict()
         col_names = ['date', 'open', 'high', 'low', 'close', 'volume', 'count', 'WAP']
         for file in glob.glob(filename):
