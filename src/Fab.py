@@ -35,6 +35,8 @@ import os.path
 from keras.models import Sequential
 from keras.layers import Dense, Activation
 
+np.set_printoptions(formatter={'float_kind':lambda x: "%.4fdf" % x})
+
 
 class Fab(object):
     """
@@ -44,9 +46,8 @@ class Fab(object):
     """
 
     def __init__(self, regression=True):
-        float_formatter = lambda x: "%.4fdf" % x
-        np.set_printoptions(formatter={'float_kind':float_formatter})
-        self.regression=regression
+
+        self.regression = regression
         self.labels = None
         self.last_test = None
         self.last_predict = None
@@ -68,9 +69,14 @@ class Fab(object):
             return pickle.load(f)
 
 
-    def get_prices(self, filename='../data/*.csv'):
+    def get_prices(self, filename='../data/*.csv', pickle_path='../data/prices.pickle', refresh=False):
         # A dictionary of dataframes.  One for each 
         # note the timezone issues need to be rechecked prior to running live
+
+        if refresh is False and os.path.exists(pickle_path):
+            print "Loading saved prices"
+            with open(pickle_path) as f:
+                return pickle.load(f)
 
         prices = dict()
         col_names = ['date', 'open', 'high', 'low', 'close', 'volume', 'count', 'WAP']
@@ -81,6 +87,11 @@ class Fab(object):
             prices[ticker].index = prices[ticker].index.tz_localize('America/Los_Angeles').tz_convert('America/New_York').tz_localize(None)
             prices[ticker]['close-MA-4'] = self.fit_moving_average_trend(prices[ticker]['close'], window=4)
         return prices
+
+
+    def write_prices(self, pickle_path='../data/prices.pickle'):
+        with open(pickle_path, "wb") as f:
+            pickle.dump(self.prices, f)
 
 
     def set_labels(self, index=None, pickle_path='../data/labels.pickle', refresh=False):
@@ -253,11 +264,22 @@ class Fab(object):
         # sequential.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
 
         if self.regression:
-            # take index from self.labels and build NLP df
+            # build NLP df with features
 
 
 
-            # take index from self.labels and 
+            # take index from self.labels and build features based on prices
+
+
+
+            # merge the NLP features with the prices features
+
+
+
+            # Parameter tuning on RF
+
+
+
 
 
 
