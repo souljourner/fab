@@ -37,14 +37,14 @@ from keras.layers import Dense, Activation
 
 
 class Fab(object):
-    '''
+    """
     Fab - FOMC Analyzer Bot
 
     A class to create predictions on the FOMC meeting minutes
-    '''
+    """
 
     def __init__(self, regression=True):
-        float_formatter = lambda x: "%.4f" % x
+        float_formatter = lambda x: "%.4fdf" % x
         np.set_printoptions(formatter={'float_kind':float_formatter})
         self.regression=regression
         self.labels = None
@@ -52,6 +52,11 @@ class Fab(object):
         self.last_predict = None
         self.meeting_statements = self.get_meeting_statements('../data/minutes_df.pickle')
         self.set_labels()
+
+        self.df = None  # a data frame that holds all the X and y's 
+        self.X = None
+        self.y = None
+
         print("Available tickers:")
         print(", ".join(list(self.labels.keys())))
 
@@ -196,6 +201,39 @@ class Fab(object):
             print "-----------------------------"
 
 
+    def predict(self, meeting_statement, timestamp, tickers):
+        """
+        Predicts the output of the given meeting_statement to the tickers in tickers.  The prerequisite
+        of this method is that prices of the instruments are already preloaded.
+
+        Designed for live prediction during FOMC meeting days 
+
+        meeting_statement -- a new meeting statement
+        """
+
+        # Wait until 1:55 PM
+        # keep updating prices until 2 PM.
+        # While refreshing FOMC site for minute:
+        #   statement = get statement
+        # if prices have already been updated
+        #   X = self.get_features(meeting_statement, timestamp, tickers) #one row matrix
+        #   return self.model.predict(X)
+        pass
+
+    def anticipate_and_predict(self, tickers=['SHY-USD-TRADES']):
+        """
+
+        """
+        # Wait until 1:45 PM
+        # keep updating prices until 2 PM.
+        # While refreshing FOMC site for minute:
+        #   statement = get statement
+        #   timestamp = current time
+        # set closing prices as current time
+        # return predict(statement, timestamp, tickers)
+        pass
+
+
     def run(self, tickers=['SHY-USD-TRADES']):
 
         # sequential = Sequential()
@@ -224,18 +262,9 @@ class Fab(object):
             #           SVC(degree=4),
             #           ModeClassifier()]
 
-            models = [RandomForestClassifier(n_jobs=-1, bootstrap=True), 
-                      RandomForestClassifier(n_jobs=-1, n_estimators=275), 
-                      RandomForestClassifier(n_jobs=-1, n_estimators=300), 
-                      RandomForestClassifier(n_jobs=-1, n_estimators=300), 
-                      RandomForestClassifier(n_jobs=-1, n_estimators=300), 
-                      RandomForestClassifier(n_jobs=-1, n_estimators=300), 
-                      RandomForestClassifier(n_jobs=-1, n_estimators=300, max_features=25), 
-                      RandomForestClassifier(n_jobs=-1, n_estimators=300, max_features=50), 
-                      RandomForestClassifier(n_jobs=-1, n_estimators=300, max_features=75), 
-                      ModeClassifier()]
 
-
+            models = [ModeClassifier(),
+                      randomForestClassifierGS]
 
 
         for ticker in tickers:
