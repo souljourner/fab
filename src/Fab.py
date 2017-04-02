@@ -51,6 +51,7 @@ class Fab(object):
         self.last_test = None
         self.last_predict = None
         self.meeting_statements = self.get_meeting_statements('../data/minutes_df.pickle')
+        self.prices = self.get_prices()
         self.set_labels()
 
         self.df = None  # a data frame that holds all the X and y's 
@@ -66,8 +67,20 @@ class Fab(object):
             print "Loading saved statements"
             return pickle.load(f)
 
+    def get_prices(self, filename='../data/*.csv')
+        # A dictionary of dataframes.  One for each ticker
+        prices = dict()
+        col_names = ['date', 'open', 'high', 'low', 'close', 'volume', 'count', 'WAP']
+        for file in glob.glob(filename):
+            ticker = file.split('/')[-1].split('.')[0]
+            prices[ticker] = pd.read_csv(file, parse_dates=['date'], infer_datetime_format=True,names=col_names).drop_duplicates()
+            prices[ticker].set_index('date', inplace=True)
+            prices[ticker].index = prices[ticker].index.tz_localize('America/Los_Angeles').tz_convert('America/New_York').tz_localize(None)
+            prices[ticker]['close-MA-4'] = self.fit_moving_average_trend(prices[ticker]['close'], window=4)
+        return prices
 
-    def set_labels(self, index=None, filename='../data/*.csv', pickle_path='../data/labels.pickle', refresh=False):
+
+    def set_labels(self, index=None, pickle_path='../data/labels.pickle', refresh=False):
 
         if refresh is False and os.path.exists(pickle_path):
             print "Loading saved labels"
@@ -78,26 +91,14 @@ class Fab(object):
         if index is None:
             index = self.meeting_statements.index
 
-        # A dictionary of dataframes.  One for each ticker
-        prices = dict()
-        col_names = ['date', 'open', 'high', 'low', 'close', 'volume', 'count', 'WAP']
-
-        # First get all the prices into respective DF's
-        for file in glob.glob(filename):
-            ticker = file.split('/')[-1].split('.')[0]
-            prices[ticker] = pd.read_csv(file, parse_dates=['date'], infer_datetime_format=True,names=col_names).drop_duplicates()
-            prices[ticker].set_index('date', inplace=True)
-            prices[ticker].index = prices[ticker].index.tz_localize('America/Los_Angeles').tz_convert('America/New_York').tz_localize(None)
-            prices[ticker]['close-MA-4'] = self.fit_moving_average_trend(prices[ticker]['close'], window=4)
-
         # Selector to get only prices right before and right after the statement release
         pre_post_FOMC_time_selector = []
         for date in index:
             pre_post_FOMC_time_selector.extend(pd.date_range(date.replace(hour=13, minute=30), periods=2, freq='2 H'))
 
         prices_FOMC = dict()
-        for key in prices.keys():
-            prices_FOMC[key] = prices[key].loc[pre_post_FOMC_time_selector][['close-MA-4']].dropna()
+        for key in self.prices.keys():
+            prices_FOMC[key] = self.prices[key].loc[pre_post_FOMC_time_selector][['close-MA-4']].dropna()
 
         # each value in this dictionary is a two columns of values.  
         y_dfs = dict()
@@ -235,6 +236,11 @@ class Fab(object):
 
 
     def run(self, tickers=['SHY-USD-TRADES']):
+        """
+        Adds the features into X for prediction and then runs several different models to compare
+        their performance.  Sets the best model as the instance's model.
+
+        """
 
         # sequential = Sequential()
         # sequential.add(Dense(units=64, input_dim=100))
@@ -244,6 +250,38 @@ class Fab(object):
         # sequential.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
 
         if self.regression:
+            # take index from self.labels and build NLP df
+
+
+
+            # take index from self.labels and 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             models = [MeanRegressor(),
                       GradientBoostingRegressor(), 
                       RandomForestRegressor(n_estimators=300)]
@@ -264,7 +302,7 @@ class Fab(object):
 
 
             models = [ModeClassifier(),
-                      randomForestClassifierGS]
+                      randomForestClassifier(n_estimators=300)]
 
 
         for ticker in tickers:
