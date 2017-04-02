@@ -14,8 +14,12 @@ from sklearn.neighbors import KNeighborsRegressor
 
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import TimeSeriesSplit
+from sklearn.model_selection import GridSearchCV
 
-from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score, auc, roc_curve
+from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score, roc_auc_score
+
+from sklearn.metrics.regression import mean_absolute_error, mean_squared_error, r2_score
+
 from sklearn.preprocessing import LabelEncoder
 
 from dumb_predictors import MeanRegressor, ModeClassifier
@@ -40,9 +44,14 @@ class Fab(object):
     '''
 
     def __init__(self, regression=True):
+        float_formatter = lambda x: "%.4f" % x
+        np.set_printoptions(formatter={'float_kind':float_formatter})
         self.regression=regression
+        self.labels = None
+        self.last_test = None
+        self.last_predict = None
         self.meeting_statements = self.get_meeting_statements('../data/minutes_df.pickle')
-        self.labels = self.get_labels(self.meeting_statements.index)
+        self.set_labels()
         print("Available tickers:")
         print(", ".join(list(self.labels.keys())))
 
@@ -53,12 +62,16 @@ class Fab(object):
             return pickle.load(f)
 
 
-    def get_labels(self, index, filename='../data/*.csv', pickle_path='../data/labels.pickle'):
+    def set_labels(self, index=None, filename='../data/*.csv', pickle_path='../data/labels.pickle', refresh=False):
 
-        if os.path.exists(pickle_path):
+        if refresh is False and os.path.exists(pickle_path):
             print "Loading saved labels"
             with open(pickle_path) as f:
-                return pickle.load(f)
+                self.labels = pickle.load(f)
+                return self.labels
+
+        if index is None:
+            index = self.meeting_statements.index
 
         # A dictionary of dataframes.  One for each ticker
         prices = dict()
@@ -85,7 +98,7 @@ class Fab(object):
         y_dfs = dict()
         for key in prices_FOMC:
             y_dfs[key] = prices_FOMC[key].groupby(prices_FOMC[key].index.date).diff().dropna() 
-            y_dfs[key]['fomc-close-MA-4-pct'] = y_dfs[key]['close-MA-4'] / prices[key].loc[y_dfs[key].index]['close']
+            y_dfs[key]['fomc-close-MA-4-pct'] = (y_dfs[key]['close-MA-4'] / prices[key].loc[y_dfs[key].index]['close'])
 
             # Removes the time from the index since now we are left with one prediction a day
             y_dfs[key].index = y_dfs[key].index.normalize()
@@ -93,7 +106,8 @@ class Fab(object):
             # Binary column stores 1 if market went up, 0 otherwise
             y_dfs[key]['binary'] = (y_dfs[key]['close-MA-4'] > 0) * 1
             y_dfs[key].columns = ['abs-delta', 'pct-delta', 'binary']
-        return y_dfs
+        self.labels = y_dfs
+        return self.labels
 
 
     def write_labels(self, pickle_path='../data/labels.pickle'):
@@ -121,12 +135,20 @@ class Fab(object):
         model.fit(X_train, y_train)
         y_predict = model.predict(X_test)
 
-        fpr, tpr, thresholds = roc_curve(y_test, y_predict)
-        return auc(fpr, tpr), \
-               accuracy_score(y_test, y_predict), \
-               f1_score(y_test, y_predict), \
-               precision_score(y_test, y_predict), \
-               recall_score(y_test, y_predict)
+        self.last_test = y_test
+        self.last_predict = y_predict
+
+        # fpr, tpr, thresholds = roc_curve(y_test, y_predict)
+        if self.regression:
+            return r2_score(y_test, y_predict), \
+                   mean_squared_error(y_test, y_predict), \
+                   mean_absolute_error(y_test, y_predict)
+        else:
+            return roc_auc_score(y_test, y_predict), \
+                   accuracy_score(y_test, y_predict), \
+                   f1_score(y_test, y_predict), \
+                   precision_score(y_test, y_predict), \
+                   recall_score(y_test, y_predict)
 
 
     def run_test(self, models, desc_train, desc_test, y_train, y_test):
@@ -135,12 +157,12 @@ class Fab(object):
         X_test = vect.transform(desc_test).toarray()
 
         if self.regression:
-            print "acc\tf1\tprec\trecall"
+            print "r2\tmse\tmae"
             for model in models:
                 name = model.__class__.__name__
-                acc, f1, prec, rec = self.run_model(model, X_train, X_test, y_train, y_test)
-                print "%.4f\t%.4f\t%.4f\t%.4f\t%s" % (acc, f1, prec, rec, name)
-            return acc
+                r2, mse, mae = self.run_model(model, X_train, X_test, y_train, y_test)
+                print "%.4f\t%.4f\t%.4f\t%s" % (r2, mse, mae, name)
+            return mse
         else:
             print "auc\tacc\tf1\tprec\trecall"
             for model in models:
@@ -159,7 +181,6 @@ class Fab(object):
         for train_index, test_index in tscv.split(desc):
             desc_train, desc_test = desc[train_index], desc[test_index]
             y_train, y_test = y[train_index], y[test_index]
-
             print ""
             print "Length: train {}, test {}".format(len(train_index), len(test_index))
             print "Balance: train {}, test {}".format(np.sum(y_train)/float(len(y_train)), 
@@ -185,12 +206,13 @@ class Fab(object):
         # sequential.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
 
         if self.regression:
-            models = [LogisticRegression(), 
-                      KNeighborsRegressor(), 
-                      RandomForestRegressor(), 
-                      GradientBoostingRegressor(),
-                      # sequential, 
-                      MeanRegressor()]
+            models = [MeanRegressor(),
+                      GradientBoostingRegressor(), 
+                      RandomForestRegressor(n_estimators=300)]
+                      # , 
+                      # GradientBoostingRegressor(),
+                      # # sequential, 
+                      # MeanRegressor()]
             
         else:
             # models = [LogisticRegression(), 
@@ -202,16 +224,15 @@ class Fab(object):
             #           SVC(degree=4),
             #           ModeClassifier()]
 
-            models = [RandomForestClassifier(bootstrap=True), 
-                      RandomForestClassifier(bootstrap=False), 
-                      RandomForestClassifier(n_estimators=275), 
-                      RandomForestClassifier(n_estimators=300), 
-                      RandomForestClassifier(n_estimators=305), 
-                      RandomForestClassifier(n_estimators=310), 
-                      RandomForestClassifier(n_estimators=315), 
-                      RandomForestClassifier(n_estimators=320), 
-                      RandomForestClassifier(n_estimators=325), 
-                      RandomForestClassifier(n_estimators=330), 
+            models = [RandomForestClassifier(n_jobs=-1, bootstrap=True), 
+                      RandomForestClassifier(n_jobs=-1, n_estimators=275), 
+                      RandomForestClassifier(n_jobs=-1, n_estimators=300), 
+                      RandomForestClassifier(n_jobs=-1, n_estimators=300), 
+                      RandomForestClassifier(n_jobs=-1, n_estimators=300), 
+                      RandomForestClassifier(n_jobs=-1, n_estimators=300), 
+                      RandomForestClassifier(n_jobs=-1, n_estimators=300, max_features=25), 
+                      RandomForestClassifier(n_jobs=-1, n_estimators=300, max_features=50), 
+                      RandomForestClassifier(n_jobs=-1, n_estimators=300, max_features=75), 
                       ModeClassifier()]
 
 
@@ -223,7 +244,13 @@ class Fab(object):
                 print "distribution of labels:"
                 for i, count in enumerate(np.bincount(self.labels[ticker]['binary'].values)):
                     print "%d: %d" % (i, count)
-                self.compare_models(self.meeting_statements.loc[self.labels[ticker].index]['statements'].values, 
+                if self.regression:
+                    # min = self.labels[ticker]['pct-delta'].values.min()
+                    # max = self.labels[ticker]['pct-delta'].values.max()
+                    self.compare_models(self.meeting_statements.loc[self.labels[ticker].index]['statements'], 
+                                    self.labels[ticker]['abs-delta'].values, models)
+                else:
+                    self.compare_models(self.meeting_statements.loc[self.labels[ticker].index]['statements'].values, 
                                     self.labels[ticker]['binary'].values, models)
 
 
