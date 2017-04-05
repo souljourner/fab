@@ -1,3 +1,45 @@
+# from __future__ import print_function
+
+import textacy
+
+from nltk.stem.wordnet import WordNetLemmatizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.svm import SVC
+
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.neighbors import KNeighborsRegressor
+
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.model_selection import GridSearchCV
+
+from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score, roc_auc_score
+
+from sklearn.metrics.regression import mean_absolute_error, mean_squared_error, r2_score
+
+from sklearn.preprocessing import LabelEncoder
+
+from dumb_predictors import MeanRegressor, ModeClassifier
+
+import pandas as pd
+import numpy as np
+import pickle
+import datetime as dt
+import glob
+import sys
+import os.path
+
+from keras.models import Sequential
+from keras.layers import Dense, Activation
+
+np.set_printoptions(formatter={'float_kind':lambda x: "%.4fdf" % x})
+
 class Fab(object):
     """
     Fab - FOMC Analyzer Bot
@@ -95,17 +137,17 @@ class Fab(object):
             pickle.dump(self.labels, f)
 
 
-    def lemmatize_descriptions(self, meeting_statements):
-        lemmatized = []
-        for statement in meeting_statements:
-            doc = nlp(statement)
-            lemmatized.append(" ".join([token.lemma_ for token in doc]))
-        return lemmatized
+#     def lemmatize_descriptions(self, meeting_statements):
+#         lemmatized = []
+#         for statement in meeting_statements:
+#             doc = nlp(statement)
+#             lemmatized.append(" ".join([token.lemma_ for token in doc]))
+#         return lemmatized
             
 
-    def get_vectorizer(self, meeting_statement, num_features=5000):
-        vect = TfidfVectorizer(max_features=num_features, stop_words='english')
-        return vect.fit(meeting_statement)
+#     def get_vectorizer(self, meeting_statement, num_features=5000):
+#         vect = TfidfVectorizer(max_features=num_features, stop_words='english')
+#         return vect.fit(meeting_statement)
 
 
     def fit_moving_average_trend(self, series, window=6):
@@ -134,10 +176,13 @@ class Fab(object):
 
 
     def run_test(self, models, desc_train, desc_test, y_train, y_test):
-        vect = self.get_vectorizer(desc_train)
-        X_train = vect.transform(desc_train).toarray()
-        X_test = vect.transform(desc_test).toarray()
+#         vect = self.get_vectorizer(desc_train)
+#         X_train = vect.transform(desc_train).toarray()
+#         X_test = vect.transform(desc_test).toarray()
 
+        X_train = desc_train
+        X_test = desc_test
+        
         if self.regression:
             print("r2\tmse\tmae")
             for model in models:
@@ -154,7 +199,7 @@ class Fab(object):
             return acc
 
 
-    def compare_models(self, desc, y, models, splits=5):
+    def compare_models(self, desc, y, models, splits=6):
 
         # desc_train, desc_test, y_train, y_test = train_test_split(desc, labels)
 
@@ -167,15 +212,15 @@ class Fab(object):
             print("Length: train {}, test {}".format(len(train_index), len(test_index)))
             print("Balance: train {}, test {}".format(np.sum(y_train)/float(len(y_train)), 
                                                       np.sum(y_test)/float(len(y_test))) )
-            # print "-----------------------------"
-            # print "Without Lemmatization:"
-            # self.run_test(models, desc_train, desc_test, y_train, y_test)
+            print ("-----------------------------")
+#             print "Without Lemmatization:"
+            self.run_test(models, desc_train, desc_test, y_train, y_test)
 
-            print("-----------------------------")
-            print("With Lemmatization:")
-            self.run_test(models, self.lemmatize_descriptions(desc_train),
-                           self.lemmatize_descriptions(desc_test), y_train, y_test)
-            print("-----------------------------")
+#             print("-----------------------------")
+#             print("With Lemmatization:")
+#             self.run_test(models, self.lemmatize_descriptions(desc_train),
+#                            self.lemmatize_descriptions(desc_test), y_train, y_test)
+#             print("-----------------------------")
 
 
     def predict(self, meeting_statement, timestamp, tickers):
@@ -228,16 +273,24 @@ class Fab(object):
 
 
         # build NLP df with features
-#         self.meeting_statements.loc[self.labels[ticker].index]['statements']
-
-
+        corpus = textacy.Corpus(lang='en')
+        corpus.add_texts(self.meeting_statements['statements'].values, n_threads=4)
+        self.doc_term_matrix, self.id2term = textacy.vsm.doc_term_matrix((doc.to_terms_list(ngrams=3, 
+                                                                                  named_entities=True, 
+                                                                                  as_strings=True) for doc in corpus),
+                                                               weighting='tfidf', 
+                                                               normalize=False, 
+                                                               smooth_idf=True, 
+#                                                                min_df=2, 
+#                                                                max_df=0.95
+                                                              )
         # take index from self.labels and build features based on prices
 
 
 
         # merge the NLP features with the prices features on the index of each ticker
 
-
+        self.X = self.doc_term_matrix
 
         # Parameter tuning on RF
 
@@ -269,7 +322,15 @@ class Fab(object):
 
 
             models = [ModeClassifier(),
-                      RandomForestClassifier(n_estimators=300)]
+                      RandomForestClassifier(n_estimators=200),
+                      RandomForestClassifier(n_estimators=225),
+                      RandomForestClassifier(n_estimators=250),
+                      RandomForestClassifier(n_estimators=275),
+                      RandomForestClassifier(n_estimators=300),
+                      RandomForestClassifier(n_estimators=325),
+                      RandomForestClassifier(n_estimators=400),
+                      RandomForestClassifier(n_estimators=500),
+                      RandomForestClassifier(n_estimators=600)]
 
 
         for ticker in tickers:
@@ -284,5 +345,7 @@ class Fab(object):
                     self.compare_models(self.meeting_statements.loc[self.labels[ticker].index]['statements'], 
                                     self.labels[ticker]['abs-delta'].values, models)
                 else:
-                    self.compare_models(self.meeting_statements.loc[self.labels[ticker].index]['statements'].values, 
-                                    self.labels[ticker]['binary'].values, models)
+                    selector = np.array([True if i in self.labels[ticker].index else False for i in self.meeting_statements.index])
+                    self.compare_models(self.X.toarray()[selector], 
+                                        self.labels[ticker]['binary'].values, models)
+
