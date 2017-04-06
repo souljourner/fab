@@ -1,9 +1,13 @@
-# from __future__ import print_function
+# baseline models
+from dumb_predictors import MeanRegressor, ModeClassifier
 
+# NLP
 import textacy
-
 from nltk.stem.wordnet import WordNetLemmatizer
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import LabelEncoder
+
+# Classification
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
@@ -11,21 +15,17 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.svm import SVC
 
+# Regression Models
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.neighbors import KNeighborsRegressor
 
+# Testing and optimization
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.model_selection import GridSearchCV
-
 from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score, roc_auc_score
-
 from sklearn.metrics.regression import mean_absolute_error, mean_squared_error, r2_score
-
-from sklearn.preprocessing import LabelEncoder
-
-from dumb_predictors import MeanRegressor, ModeClassifier
 
 import pandas as pd
 import numpy as np
@@ -35,18 +35,18 @@ import glob
 import sys
 import os.path
 
-from keras.models import Sequential
-from keras.layers import Dense, Activation
+# from keras.models import Sequential
+# from keras.layers import Dense, Activation
 
 np.set_printoptions(formatter={'float_kind':lambda x: "%.4fdf" % x})
 
 class Fab(object):
     """
-    Fab - FOMC Analyzer Bot
+    Fab - FOMC Analysis Bot - 0.1 - A work in progress
 
     A class to create predictions on the FOMC meeting minutes
-    """
 
+    """
     def __init__(self, regression=True):
 
         self.regression = regression
@@ -72,14 +72,21 @@ class Fab(object):
 
 
     def get_prices(self, filename='../data/*.csv', pickle_path='../data/prices.pickle', refresh=False):
-        # A dictionary of dataframes.  One for each 
-        # note the timezone issues need to be rechecked prior to running live
+
+        """
+        Gets prices from the 16 instruments.  It loads from the saved pickle file unless refresh is True
+
+        Input: filename, pickle_path, and refresh.  If refresh is True, it will skip loading of the prices
+               from the pickle path and instead read from CSVs in the data directory specified in filename.
+        """
 
         if refresh is False and os.path.exists(pickle_path):
             print("Loading saved prices")
             with open(pickle_path, 'rb') as f:
                 return pickle.load(f)
 
+        # A dictionary of dataframes.  One for each 
+        # note the timezone issues need to be rechecked prior to running live
         prices = dict()
         col_names = ['date', 'open', 'high', 'low', 'close', 'volume', 'count', 'WAP']
         for file in glob.glob(filename):
@@ -88,6 +95,7 @@ class Fab(object):
             prices[ticker].set_index('date', inplace=True)
             prices[ticker].index = prices[ticker].index.tz_localize('America/Los_Angeles').tz_convert('America/New_York').tz_localize(None)
             prices[ticker]['close-MA-4'] = self.fit_moving_average_trend(prices[ticker]['close'], window=4)
+        self.write_prices()
         return prices
 
 
@@ -97,6 +105,13 @@ class Fab(object):
 
 
     def set_labels(self, index=None, pickle_path='../data/labels.pickle', refresh=False):
+        """
+        Gets the labels from the 16 instruments.  It loads from the saved pickle file unless refresh is True
+
+        Input: filename, pickle_path, and refresh.  If refresh is True, it will skip loading of the prices
+               from the pickle path and instead read from CSVs in the data directory specified in filename.
+
+        """
 
         if refresh is False and os.path.exists(pickle_path):
             print("Loading saved labels")
@@ -128,8 +143,8 @@ class Fab(object):
             # Binary column stores 1 if market went up, 0 otherwise
             y_dfs[key]['binary'] = (y_dfs[key]['close-MA-4'] > 0) * 1
             y_dfs[key].columns = ['abs-delta', 'pct-delta', 'binary']
+        self.write_labels()
         self.labels = y_dfs
-        return self.labels
 
 
     def write_labels(self, pickle_path='../data/labels.pickle'):
@@ -261,16 +276,9 @@ class Fab(object):
         Adds the features into X for prediction and then runs several different models to compare
         their performance.  Sets the best model as the instance's model.
 
+        Implementation needed 
+
         """
-
-        # sequential = Sequential()
-        # sequential.add(Dense(units=64, input_dim=100))
-        # sequential.add(Activation('relu'))
-        # sequential.add(Dense(units=10))
-        # sequential.add(Activation('softmax'))
-        # sequential.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
-
-
 
         # build NLP df with features
         corpus = textacy.Corpus(lang='en')
@@ -281,12 +289,10 @@ class Fab(object):
                                                                weighting='tfidf', 
                                                                normalize=False, 
                                                                smooth_idf=True, 
-#                                                                min_df=2, 
-#                                                                max_df=0.95
+                                                               # min_df=2, 
+                                                               # max_df=0.95
                                                               )
         # take index from self.labels and build features based on prices
-
-
 
         # merge the NLP features with the prices features on the index of each ticker
 
@@ -294,44 +300,14 @@ class Fab(object):
 
         # Parameter tuning on RF
 
-
-
-
-
         if self.regression:
-
-
-
             models = [MeanRegressor(),
                       GradientBoostingRegressor(), 
                       RandomForestRegressor(n_estimators=300)]
-                      # , 
-                      # GradientBoostingRegressor(),
-                      # # sequential, 
-                      # MeanRegressor()]
             
         else:
-            # models = [LogisticRegression(), 
-            #           KNeighborsClassifier(), 
-            #           MultinomialNB(), 
-            #           RandomForestClassifier(bootstrap=False), 
-            #           # sequential, 
-            #           GradientBoostingClassifier(),
-            #           SVC(degree=4),
-            #           ModeClassifier()]
-
-
             models = [ModeClassifier(),
-                      RandomForestClassifier(n_estimators=200),
-                      RandomForestClassifier(n_estimators=225),
-                      RandomForestClassifier(n_estimators=250),
-                      RandomForestClassifier(n_estimators=275),
-                      RandomForestClassifier(n_estimators=300),
-                      RandomForestClassifier(n_estimators=325),
-                      RandomForestClassifier(n_estimators=400),
-                      RandomForestClassifier(n_estimators=500),
-                      RandomForestClassifier(n_estimators=600)]
-
+                      RandomForestClassifier(n_estimators=300)]
 
         for ticker in tickers:
             if ticker in self.labels.keys():
@@ -348,4 +324,3 @@ class Fab(object):
                     selector = np.array([True if i in self.labels[ticker].index else False for i in self.meeting_statements.index])
                     self.compare_models(self.X.toarray()[selector], 
                                         self.labels[ticker]['binary'].values, models)
-
